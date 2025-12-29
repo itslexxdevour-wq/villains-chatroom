@@ -1920,6 +1920,66 @@
         const auth = firebase.auth();
         const messagesRef = database.ref('starclub-messages');
         const onlineUsersRef = database.ref('starclub-online');
+        // ==================== MEMBERSPACE PLAN MAPPING ====================
+        const PLAN_MAP = {
+            's6t83cvwnt': 'villains',
+            's5ezkcutnb': 'redroom',
+            'thn9namvtz': 'signature-rebrand',
+            'ka6hrjyhas': 'signature-rebrand',
+            'ociyjcqggb': 'aura',
+            'g8sfteogd7': 'aura'
+        };
+
+        // ==================== GROUP DEFINITIONS ====================
+        const GROUPS = {
+            starclub: {
+                name: 'Starclub',
+                icon: '✨',
+                channels: [
+                    { id: 'general', name: 'General', icon: '💬' },
+                    { id: 'villain-era', name: 'Villain Era', icon: '👑' },
+                    { id: 'rebrand-wins', name: 'Rebrand Wins', icon: '✨' },
+                    { id: 'hot-takes', name: 'Hot Takes', icon: '🔥' },
+                    { id: 'manifestation', name: 'Manifestation', icon: '🌙' },
+                    { id: 'resources', name: 'Resources', icon: '📚' },
+                    { id: 'vip-lounge', name: 'VIP Lounge', icon: '💎' }
+                ]
+            },
+            'signature-rebrand': {
+                name: 'The Signature Rebrand',
+                icon: '✍️',
+                channels: [
+                    { id: 'announcements', name: 'Announcements', icon: '📢' },
+                    { id: 'lessons', name: 'Lessons', icon: '📚' },
+                    { id: 'wins', name: 'Wins', icon: '🏆' }
+                ]
+            },
+            redroom: {
+                name: 'Red Room',
+                icon: '💎',
+                channels: [
+                    { id: 'announcements', name: 'Announcements', icon: '📢' },
+                    { id: 'general-chat', name: 'General Chat', icon: '💬' }
+                ]
+            },
+            aura: {
+                name: 'AURA',
+                icon: '🌙',
+                channels: [
+                    { id: 'announcements', name: 'Announcements', icon: '📢' },
+                    { id: 'general-chat', name: 'General Chat', icon: '💬' },
+                    { id: 'wins', name: 'Wins', icon: '🏆' }
+                ]
+            },
+            villains: {
+                name: 'The Villains',
+                icon: '👑',
+                channels: [
+                    { id: 'announcements', name: 'Announcements', icon: '📢' },
+                    { id: 'general-chat', name: 'General Chat', icon: '💬' }
+                ]
+            }
+        };
         
         let messageId = 0;
         const messages = [];
@@ -1974,6 +2034,57 @@
             }
         }
 
+        // ==================== MEMBERSPACE INTEGRATION ====================
+        window.addEventListener('message', async (event) => {
+            console.log('Received message from parent:', event.data);
+            
+            if (event.data.type === 'memberspace-auth') {
+                const { email, planIds, memberId, name } = event.data.data;
+                console.log('Memberspace auth data:', { email, planIds, memberId, name });
+                
+                // Map plans to group access
+                const access = {};
+                planIds.forEach(planId => {
+                    const group = PLAN_MAP[planId];
+                    if (group) {
+                        access[group] = true;
+                        console.log(`Granted access to ${group} via plan ${planId}`);
+                    }
+                });
+                
+                // Always give access to Starclub (base tier)
+                access.starclub = true;
+                
+                console.log('Final access:', access);
+                
+                try {
+                    let user = auth.currentUser;
+                    
+                    if (!user) {
+                        console.log('Signing in anonymously...');
+                        const result = await auth.signInAnonymously();
+                        user = result.user;
+                        await user.updateProfile({ displayName: name });
+                        console.log('Anonymous sign-in successful');
+                    }
+                    
+                    // Store Memberspace data in Firebase
+                    await database.ref(`users/${user.uid}`).set({
+                        name: name,
+                        email: email,
+                        membershipId: memberId,
+                        access: access,
+                        lastLogin: Date.now()
+                    });
+                    
+                    console.log('User data stored in Firebase');
+                    
+                } catch (error) {
+                    console.error('Memberspace auth error:', error);
+                    showAuthError('Failed to authenticate. Please refresh and try again.');
+                }
+            }
+        });
         // Firebase Auth listener
         auth.onAuthStateChanged((user) => {
             if (user) {
